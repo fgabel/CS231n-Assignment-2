@@ -25,7 +25,11 @@ def affine_forward(x, w, b):
     # TODO: Implement the affine forward pass. Store the result in out. You   #
     # will need to reshape the input into rows.                               #
     ###########################################################################
-    pass
+
+    x_reshaped = x.reshape(x.shape[0],x.flatten().size/x.shape[0]) # Shape must be D
+    out = np.matmul(x_reshaped, w) + b
+    print out.shape
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
