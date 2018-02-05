@@ -26,9 +26,9 @@ def affine_forward(x, w, b):
     # will need to reshape the input into rows.                               #
     ###########################################################################
 
-    x_reshaped = x.reshape(x.shape[0],x.flatten().size/x.shape[0]) # Shape must be D
-    out = np.matmul(x_reshaped, w) + b
-    print out.shape
+    # Shape must be D
+    x_reshaped = x.reshape(x.shape[0],x.size/x.shape[0])
+    out = np.dot(x_reshaped, w) + b
 
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -57,7 +57,17 @@ def affine_backward(dout, cache):
     ###########################################################################
     # TODO: Implement the affine backward pass.                               #
     ###########################################################################
-    pass
+    D = x.size / x.shape[0]
+
+    # dx(N,D) = dout(N,M) * w.T(M,D)
+    dx = np.dot(dout, w.T).reshape(x.shape)
+
+    # dw(D,M) = x.T(D,N) * dout(N,M)
+    dw = np.dot(x.reshape(x.shape[0],D).T, dout)
+
+    # db(M,1) = dout(M,1)
+    db = np.sum(dout, axis=0)
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -79,7 +89,7 @@ def relu_forward(x):
     ###########################################################################
     # TODO: Implement the ReLU forward pass.                                  #
     ###########################################################################
-    pass
+    out = np.maximum(x,0)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -102,7 +112,8 @@ def relu_backward(dout, cache):
     ###########################################################################
     # TODO: Implement the ReLU backward pass.                                 #
     ###########################################################################
-    pass
+    dx = np.maximum(x,0)/x
+    dx = np.multiply(dx,dout)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
