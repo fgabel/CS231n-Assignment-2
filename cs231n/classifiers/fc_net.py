@@ -133,12 +133,9 @@ class FullyConnectedNet(object):
     ReLU nonlinearities, and a softmax loss function. This will also implement
     dropout and batch normalization as options. For a network with L layers,
     the architecture will be
-
     {affine - [batch norm] - relu - [dropout]} x (L - 1) - affine - softmax
-
     where batch normalization and dropout are optional, and the {...} block is
     repeated L - 1 times.
-
     Similar to the TwoLayerNet above, learnable parameters are stored in the
     self.params dictionary and will be learned using the Solver class.
     """
@@ -148,7 +145,6 @@ class FullyConnectedNet(object):
                  weight_scale=1e-2, dtype=np.float32, seed=None):
         """
         Initialize a new FullyConnectedNet.
-
         Inputs:
         - hidden_dims: A list of integers giving the size of each hidden layer.
         - input_dim: An integer giving the size of the input.
@@ -185,7 +181,18 @@ class FullyConnectedNet(object):
         # beta2, etc. Scale parameters should be initialized to one and shift      #
         # parameters should be initialized to zero.                                #
         ############################################################################
-        pass
+        net_dims = [input_dim]+hidden_dims+[num_classes]
+
+        for i in range(self.num_layers):
+            self.params['W%d' %(i+1)] = np.random.normal(loc=0.0,
+                                                         scale=weight_scale,
+                                                         size=(net_dims[i],
+                                                         net_dims[i+1]))
+            self.params['b%d' %(i+1)] = np.zeros(net_dims[i+1])
+            if (self.use_batchnorm) & (i!=self.num_layers-1):
+                self.params['gamma%d' %(i+1)] = np.ones(net_dims[i+1])
+                self.params['beta%d' %(i+1)] = np.zeros(net_dims[i+1])
+
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -216,7 +223,6 @@ class FullyConnectedNet(object):
     def loss(self, X, y=None):
         """
         Compute loss and gradient for the fully-connected net.
-
         Input / output: Same as TwoLayerNet above.
         """
         X = X.astype(self.dtype)
@@ -243,14 +249,56 @@ class FullyConnectedNet(object):
         # self.bn_params[1] to the forward pass for the second batch normalization #
         # layer, etc.                                                              #
         ############################################################################
-        pass
+        scores = {}
+        cache = {}
+        dropout_cache = {}
+        scores[0] = X
+
+        # This would be very much easier on Ruby
+        if self.use_batchnorm:
+            for i in range(1, self.num_layers+1):
+                if i!=self.num_layers:
+                    scores[i], cache[i] = batch_relu_forward(
+                                          scores[i-1],
+                                          self.params['W%d' %i],
+                                          self.params['b%d' %i],
+                                          self.params['gamma%d' %i],
+                                          self.params['beta%d' %i],
+                                          bn_param=self.bn_params[i-1])
+                    if self.use_dropout:
+                        scores[i], dropout_cache[i] = dropout_forward(
+                                                      scores[i],
+                                                      self.dropout_param)
+
+                else:
+                    scores[i], cache[i] = affine_forward(
+                                          scores[i-1],
+                                          self.params['W%d' %i],
+                                          self.params['b%d' %i])
+        else:
+            for i in range(1, self.num_layers+1):
+                if i!=self.num_layers:
+                    scores[i], cache[i] = affine_relu_forward(
+                                          scores[i-1],
+                                          self.params['W%d' %i],
+                                          self.params['b%d' %i])
+                    if self.use_dropout:
+                        scores[i], dropout_cache[i] = dropout_forward(
+                                                      scores[i],
+                                                      self.dropout_param )
+                else:
+                    scores[i], cache[i] = affine_forward(
+                                          scores[i-1],
+                                          self.params['W%d' %i],
+                                          self.params['b%d' %i])
+
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
 
         # If test mode return early
         if mode == 'test':
-            return scores
+            return scores[self.num_layers]
 
         loss, grads = 0.0, {}
         ############################################################################
@@ -266,7 +314,44 @@ class FullyConnectedNet(object):
         # automated tests, make sure that your L2 regularization includes a factor #
         # of 0.5 to simplify the expression for the gradient.                      #
         ############################################################################
-        pass
+        loss, dscores = softmax_loss(scores[self.num_layers], y)
+
+        for i in range(1, self.num_layers+1):
+            loss += 0.5*self.reg*np.sum(self.params['W%d' %i]*self.params['W%d' %i])
+
+        # This would be very much easier on Ruby
+        if self.use_batchnorm:
+            for i in range(self.num_layers, 0, -1):
+                if i!=self.num_layers:
+                    if self.use_dropout:
+                        dscores = dropout_backward(dscores, dropout_cache[i])
+                    (dscores, grads['W%d' %i], grads['b%d' %i],
+                     grads['gamma%d' %i], grads['beta%d' %i]) = batch_relu_backward(
+                                                                dscores,
+                                                                cache[i])
+                    grads['W%d' %i] += self.reg*self.params['W%d' %i]
+                else:
+                    dscores, grads['W%d' %i], grads['b%d' %i] = affine_backward(
+                                                                dscores,
+                                                                cache[i])
+
+                    grads['W%d' %i] += self.reg*self.params['W%d' %i]
+
+        else:
+            for i in range(self.num_layers, 0, -1):
+                if i!=self.num_layers:
+                    if self.use_dropout:
+                        dscores = dropout_backward(dscores, dropout_cache[i])
+                    dscores, grads['W%d' %i], grads['b%d' %i] = affine_relu_backward(
+                                                                dscores, cache[i])
+                    grads['W%d' %i] += self.reg*self.params['W%d' %i]
+                else:
+                    dscores, grads['W%d' %i], grads['b%d' %i] = affine_backward(
+                                                                dscores,
+                                                                cache[i])
+
+                    grads['W%d' %i] += self.reg*self.params['W%d' %i]
+
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
